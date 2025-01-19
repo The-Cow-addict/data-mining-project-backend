@@ -1,9 +1,21 @@
 {
+  "name": "express-fastapi-app",
+  "version": "1.0.0",
+  "description": "An app with Express and FastAPI",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "concurrently \"npm run dev:express\" \"npm run dev:fastapi\"",
+    "dev:express": "nodemon app.js",
+    "dev:fastapi": "uvicorn fastapi_backend.recommender_api:app --reload --port 5001"
+  },
   "dependencies": {
-    "body-parser": "^1.20.3",
+    "axios": "^1.7.9",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "mongoose": "^8.9.5"
+    "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "concurrently": "^7.0.0",
+    "nodemon": "^2.0.7"
   }
 }

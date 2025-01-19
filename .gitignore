@@ -1,0 +1,25 @@
+# Ignore dataset files and directories
+datasets/
+data/
+*.csv
+*.tsv
+*.json
+*.xml
+filtered_data.csv
+RAW_recipes.csv
+
+# Specific file patterns often found in datasets
+*.h5
+*.hdf5
+*.mat
+*.npy
+*.npz
+
+# Backup files and temporary files
+*.bak
+*.tmp
+*.temp
+
+# Hidden system files
+.DS_Store
+Thumbs.db
