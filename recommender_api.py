@@ -7,20 +7,28 @@ from sklearn.preprocessing import FunctionTransformer
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict
+from fastapi.middleware.cors import CORSMiddleware
 
-# loading the dataset raw recipes
+# Loading the dataset raw recipes
 df = pd.read_csv("filtered_data.csv")
 
 # Drop 'food types' column since it's not needed in processing
 df.drop(['food types'], axis=1, inplace=True)
 
-# Initialize the scaler and apply it to the appropriate columns
+# Initialize the scaler and apply it to a wider range of columns (7 to 19)
 scaler = StandardScaler()
-prep_data = scaler.fit_transform(df.iloc[:, 7:14].to_numpy())  # Adjust this range to the columns for nutritional values
+prep_data = scaler.fit_transform(df.iloc[:, 7:19].to_numpy())  
 
-# Initialize Nearest Neighbors model
+# Initialize Nearest Neighbors model with cosine metric
 neigh = NearestNeighbors(metric='cosine', algorithm='brute')
 neigh.fit(prep_data)
+
+# Create a FunctionTransformer for the KNN and set parameters for pipeline
+params = {'n_neighbors': 10, 'return_distance': False}
+transformer = FunctionTransformer(neigh.kneighbors, kw_args=params)
+
+# Build pipeline to apply feature scaling followed by K-Nearest Neighbors
+pipeline = Pipeline([('std_scaler', scaler), ('NN', transformer)])
 
 # Function to scale data
 def scaling(df):
@@ -28,47 +36,44 @@ def scaling(df):
     prep_data = scaler.fit_transform(df.iloc[:, 7:14].to_numpy())  # Adjust this to the relevant columns
     return prep_data, scaler
 
-# Function to get nearest neighbors
+# Function to get nearest neighbors model
 def nn_predictor(prep_data):
     neigh = NearestNeighbors(metric="cosine", algorithm="brute")
     neigh.fit(prep_data)
     return neigh
 
-# Build pipeline
+# Build pipeline for scaling and applying nearest neighbors
 def build_pipeline(neigh, scaler, params):
     transformer = FunctionTransformer(neigh.kneighbors, kw_args=params)
-    pipeline = Pipeline([("std_scaler", scaler), ("NN", transformer)])
+    pipeline = Pipeline([('std_scaler', scaler), ('NN', transformer)])
     return pipeline
 
 # Filter function to apply conditions on the data
 def filter_data(df, ingredient_filter, max_nutrition, food_type):
     extract_data = df.copy()
-
-    # List of nutritional columns (adjust based on your actual data)
-    nutrition_columns = ["calories", "total fat", "sugar", "sodium", "protein", "saturated fat", "carbohydrates"]
     
-    # Apply nutritional filters to the relevant columns
-    for column, maximum in zip(nutrition_columns, max_nutrition):
+    # Apply nutritional filters based on columns 7 to 13 (nutritional values)
+    for column, maximum in zip(extract_data.columns[7:13], max_nutrition):
         extract_data = extract_data[extract_data[column] < maximum]
     
     # Filter based on food type if provided
     if food_type is not None:
         extract_data = extract_data[extract_data[food_type] == True]
-
+    
     # Filter based on ingredients if provided
     if ingredient_filter is not None:
         for ingredient in ingredient_filter:
-            extract_data = extract_data[extract_data["ingredients"].str.contains(ingredient, regex=False)]
-
+            extract_data = extract_data[extract_data['ingredients'].str.contains(ingredient, regex=False)]
+    
     return extract_data
 
-# Apply pipeline transformation
+# Apply the pipeline to make recommendations
 def apply_pipeline(pipeline, _input, extract_data):
     _input = np.array(_input).reshape(1, -1)
     return extract_data.iloc[pipeline.transform(_input)[0]]
 
 # Recommendation function
-def recommend(df, max_nutritional_values, food_type, ingredient_filter=[], params={"return_distance": False}):
+def recommend(df, max_nutritional_values, food_type, ingredient_filter=[], params={'return_distance': False}):
     # Apply filtering based on input
     extract_data = filter_data(df, ingredient_filter, max_nutritional_values, food_type)
     
@@ -84,6 +89,14 @@ def recommend(df, max_nutritional_values, food_type, ingredient_filter=[], param
 # FastAPI app
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
 # Request and response models
 class RecommendationRequest(BaseModel):
     max_nutritional_values: List[float]
@@ -98,7 +111,7 @@ class RecommendationResponse(BaseModel):
 async def get_all_data():
     try:
         # Display only a few lines (e.g., first 5 rows) from the filtered data
-        sample_data = filter_data(df, ingredient_filter=[], max_nutrition=[float('inf')]*7, food_type=None).head(5)
+        sample_data = filter_data(df, ingredient_filter=[], max_nutrition=[float('inf')] * 7, food_type=None).head(5)
         data = sample_data.to_dict(orient="records")
         return {"data": data}
     except Exception as e:
