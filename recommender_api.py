@@ -89,6 +89,10 @@ def recommend(df, max_nutritional_values, food_type, ingredient_filter=[], param
 # FastAPI app
 app = FastAPI()
 
+origins = [
+    "https://data-mining-project-eight.vercel.app/",  
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Restrict to your frontend origin
